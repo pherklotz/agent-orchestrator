@@ -1,0 +1,31 @@
+---
+title: Jira issue intake
+description: Read Jira issues and start workers from assigned Jira tasks through the jira CLI.
+---
+
+Orchestrator reads Jira through the [jira CLI](https://github.com/ankitpokhrel/jira-cli). Install it, run `jira init`, and confirm `jira me` prints your account. The CLI owns the Jira server and credentials (for example `JIRA_API_TOKEN`); Orchestrator stores none. When `jira` is not on the daemon's `PATH`, only Jira lookups fail.
+
+## Issue context for one session
+
+Pass a Jira key or browse URL as the issue. The daemon runs `jira issue view <KEY> --raw` and adds the summary, status, labels, assignee, and description to the worker prompt.
+
+```bash
+ao spawn --project my-app --name proj-123 --issue PROJ-123
+ao spawn --project my-app --name proj-123 --issue https://acme.atlassian.net/browse/PROJ-123
+```
+
+## Start workers from assigned tasks
+
+Intake uses the same opt-ins as the [GitHub intake guide](/plugins/trackers/github): `AO_TRACKER_INTAKE=on` on the daemon plus a project config. Jira is never inferred from the Git remote, so set the provider and the Jira project key explicitly. `ao project set-config` replaces the full project config; read the [full-config warning](/configuration/projects#update-from-the-cli) first.
+
+```bash
+ao project set-config my-app \
+  --tracker-intake \
+  --tracker-provider jira \
+  --tracker-repo PROJ \
+  --tracker-assignee alice@example.com
+```
+
+Every poll runs `jira issue list --raw --project PROJ` for issues that are not done and are assigned to the given user. The assignee can be an email, display name, Server username, or Cloud account id; `*` means any assignee. Only issues in Jira's **To Do** status category start a worker, one per issue. Issues already in progress are skipped.
+
+Intake is read-only toward Jira: it does not comment on, transition, or close issues.

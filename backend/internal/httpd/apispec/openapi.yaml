@@ -18007,6 +18007,7 @@ components:
           enum:
           - github
           - gitlab
+          - jira
           type: string
       type: object
     SpawnSessionResponse:
@@ -18384,6 +18385,7 @@ components:
           enum:
           - github
           - gitlab
+          - jira
           type: string
         repo:
           type: string

@@ -11,6 +11,7 @@ import (
 	scmgitlab "github.com/aoagents/agent-orchestrator/backend/internal/adapters/scm/gitlab"
 	trackergithub "github.com/aoagents/agent-orchestrator/backend/internal/adapters/tracker/github"
 	trackergitlab "github.com/aoagents/agent-orchestrator/backend/internal/adapters/tracker/gitlab"
+	trackerjira "github.com/aoagents/agent-orchestrator/backend/internal/adapters/tracker/jira"
 	trackermulti "github.com/aoagents/agent-orchestrator/backend/internal/adapters/tracker/multi"
 	"github.com/aoagents/agent-orchestrator/backend/internal/config"
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
@@ -117,6 +118,10 @@ func newMultiTracker(gitlabCfg config.GitLabConfig, logger *slog.Logger) ports.T
 	} else {
 		named = append(named, trackermulti.NamedTracker{Key: "gitlab", Tracker: t})
 	}
+
+	// Jira runs through the jira CLI. Lazy so installing it later is picked up
+	// without a daemon restart.
+	named = append(named, trackermulti.NamedTracker{Key: "jira", Tracker: &lazyTracker{name: "jira", logger: logger, build: func() (ports.Tracker, error) { return trackerjira.New() }}})
 
 	if len(named) == 0 {
 		return nil

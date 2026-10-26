@@ -22,7 +22,7 @@ ao project set-config my-app \
 
 When `trackerIntake.provider` is omitted, Orchestrator infers the provider from the project's Git remote. GitHub hosts select `github`; other remote hosts select `gitlab`. An empty or unparseable remote falls back to `github`. When the repository is omitted, Orchestrator can also derive it from that remote.
 
-For an explicit GitLab intake configuration, set `trackerIntake.provider` to `gitlab` in the full configuration object through the daemon API. The CLI has no `--tracker-provider` flag on `project set-config`; that flag belongs to `spawn`. If you use `--config-json`, preserve all other project settings and heed the effort-loss warning above. The intake portion of the object is:
+For an explicit GitLab intake configuration, pass `--tracker-provider gitlab` to `project set-config`, or set `trackerIntake.provider` to `gitlab` in the full configuration object. If you use `--config-json`, preserve all other project settings and heed the effort-loss warning above. The intake portion of the object is:
 
 ```json
 {

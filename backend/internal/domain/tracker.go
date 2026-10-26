@@ -9,11 +9,12 @@ import (
 // TrackerProvider identifies an issue-tracker provider implementation.
 type TrackerProvider string
 
-// TrackerProviderGitHub and TrackerProviderGitLab are the supported issue-tracker
-// providers.
+// TrackerProviderGitHub, TrackerProviderGitLab, and TrackerProviderJira are the
+// supported issue-tracker providers. Jira is served through the jira CLI.
 const (
 	TrackerProviderGitHub TrackerProvider = "github"
 	TrackerProviderGitLab TrackerProvider = "gitlab"
+	TrackerProviderJira   TrackerProvider = "jira"
 )
 
 // TrackerID identifies one issue. Native is the provider's own canonical form
@@ -101,12 +102,13 @@ type ListFilter struct {
 // cannot accidentally drain an entire issue backlog.
 type TrackerIntakeConfig struct {
 	Enabled bool `json:"enabled,omitempty"`
-	// Provider defaults to github when Enabled is true. Supported values:
-	// "github" and "gitlab".
-	Provider TrackerProvider `json:"provider,omitempty" enum:"github,gitlab"`
+	// Provider is inferred from the repo origin URL when empty. Supported
+	// values: "github", "gitlab", and "jira". Jira is never inferred.
+	Provider TrackerProvider `json:"provider,omitempty" enum:"github,gitlab,jira"`
 	// Repo is the provider-native repository key ("owner/repo" for GitHub,
-	// "group/project" for GitLab). When empty, the intake loop derives it from
-	// the project's repo origin URL.
+	// "group/project" for GitLab, the project key "PROJ" for Jira). When empty,
+	// the intake loop derives it from the project's repo origin URL; Jira
+	// requires it.
 	Repo string `json:"repo,omitempty"`
 	// Assignee narrows eligible issues to one assignee. Provider-specific values
 	// such as "*" are passed through unchanged.
@@ -155,8 +157,11 @@ func (c TrackerIntakeConfig) Validate() error {
 	if !c.Enabled {
 		return nil
 	}
-	if c.Provider != "" && c.Provider != TrackerProviderGitHub && c.Provider != TrackerProviderGitLab {
+	if c.Provider != "" && c.Provider != TrackerProviderGitHub && c.Provider != TrackerProviderGitLab && c.Provider != TrackerProviderJira {
 		return fmt.Errorf("trackerIntake.provider: unsupported provider %q", c.Provider)
+	}
+	if c.Provider == TrackerProviderJira && strings.TrimSpace(c.Repo) == "" {
+		return fmt.Errorf("trackerIntake.repo: the Jira project key is required for provider jira")
 	}
 	if err := validateNoWhitespaceField("trackerIntake.repo", c.Repo); err != nil {
 		return err

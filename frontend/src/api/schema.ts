@@ -6305,7 +6305,7 @@ export interface components {
             /** @enum {string} */
             requestedOutput?: "artifact";
             /** @enum {string} */
-            trackerProvider?: "github" | "gitlab";
+            trackerProvider?: "github" | "gitlab" | "jira";
         };
         SpawnSessionResponse: {
             promptBytes: number;
@@ -6468,7 +6468,7 @@ export interface components {
             assignee?: string;
             enabled?: boolean;
             /** @enum {string} */
-            provider?: "github" | "gitlab";
+            provider?: "github" | "gitlab" | "jira";
             repo?: string;
         };
         TriggerReviewRequest: {
