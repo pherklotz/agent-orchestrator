@@ -70,6 +70,9 @@ func TestProjectConfigValidate(t *testing.T) {
 		{"tracker intake assignee with whitespace", ProjectConfig{TrackerIntake: TrackerIntakeConfig{Enabled: true, Assignee: " alice"}}, true},
 		{"auto review enabled", ProjectConfig{AutoReview: true}, false},
 		{"auto review disabled", ProjectConfig{AutoReview: false}, false},
+		{"scm provider gitlab", ProjectConfig{SCMProvider: SCMProviderGitLab}, false},
+		{"scm provider none", ProjectConfig{SCMProvider: SCMProviderNone}, false},
+		{"scm provider unknown", ProjectConfig{SCMProvider: "bitbucket"}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -218,5 +221,27 @@ func TestProjectConfigIsZero(t *testing.T) {
 	}
 	if (ProjectConfig{AutoReview: true}).IsZero() {
 		t.Fatal("config with autoReview enabled should not be zero")
+	}
+}
+
+func TestSCMProviderAllows(t *testing.T) {
+	cases := []struct {
+		selection SCMProvider
+		provider  string
+		want      bool
+	}{
+		{SCMProviderAuto, "github", true},
+		{SCMProviderAuto, "gitlab", true},
+		{SCMProviderGitHub, "github", true},
+		{SCMProviderGitHub, "gitlab", false},
+		{SCMProviderGitLab, "gitlab", true},
+		{SCMProviderGitLab, "github", false},
+		{SCMProviderNone, "github", false},
+		{SCMProviderNone, "gitlab", false},
+	}
+	for _, tc := range cases {
+		if got := tc.selection.Allows(tc.provider); got != tc.want {
+			t.Errorf("SCMProvider(%q).Allows(%q) = %v, want %v", tc.selection, tc.provider, got, tc.want)
+		}
 	}
 }

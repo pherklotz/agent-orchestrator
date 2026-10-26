@@ -760,7 +760,7 @@ func (o *Observer) discoverSubjects(ctx context.Context) (map[string]*subject, [
 			}
 			projects[sess.ProjectID] = p
 			proj = p
-			if origin, ok := o.provider.ParseRepository(p.RepoOriginURL); ok {
+			if origin, ok := o.parseProjectRepository(p, p.RepoOriginURL); ok {
 				scanRepos[sess.ProjectID] = o.resolveScanRepos(ctx, p, origin)
 			}
 		}
@@ -784,6 +784,9 @@ func (o *Observer) discoverSubjects(ctx context.Context) (map[string]*subject, [
 		}
 		for _, pr := range trackedPRsForSession(sess, prs) {
 			prRepo, ok := repoForTrackedPR(pr, repos)
+			if ok && !proj.Config.SCMProvider.Allows(prRepo.Provider) {
+				continue
+			}
 			if !ok {
 				o.logger.Warn("scm observer: tracked PR repo no longer belongs to project", "session", sess.ID, "pr", pr.URL, "repo", pr.Repo)
 				continue
@@ -802,6 +805,16 @@ func (o *Observer) discoverSubjects(ctx context.Context) (map[string]*subject, [
 	return out, sessionRepos, nil
 }
 
+// parseProjectRepository parses remote and drops it unless the project's
+// SCMProvider selection allows the provider it resolved to.
+func (o *Observer) parseProjectRepository(proj domain.ProjectRecord, remote string) (ports.SCMRepo, bool) {
+	repo, ok := o.provider.ParseRepository(remote)
+	if !ok || !proj.Config.SCMProvider.Allows(repo.Provider) {
+		return ports.SCMRepo{}, false
+	}
+	return repo, true
+}
+
 // The stored origin remains usable when the checkout is temporarily unavailable.
 func (o *Observer) resolveScanRepos(ctx context.Context, proj domain.ProjectRecord, origin ports.SCMRepo) []ports.SCMRepo {
 	repos := []ports.SCMRepo{origin}
@@ -810,7 +823,7 @@ func (o *Observer) resolveScanRepos(ctx context.Context, proj domain.ProjectReco
 	}
 	seen := map[string]bool{strings.ToLower(prKey(origin, 0)): true}
 	for _, url := range gitRemoteURLsFunc(ctx, proj.Path) {
-		repo, ok := o.provider.ParseRepository(url)
+		repo, ok := o.parseProjectRepository(proj, url)
 		if !ok {
 			continue
 		}
@@ -863,13 +876,14 @@ func (o *Observer) workspaceSCMSessionRepos(ctx context.Context, proj domain.Pro
 		if strings.TrimSpace(child.RepoOriginURL) == "" {
 			continue
 		}
-		repo, ok := o.provider.ParseRepository(child.RepoOriginURL)
+		repo, ok := o.parseProjectRepository(proj, child.RepoOriginURL)
 		if !ok {
 			o.logger.Debug("scm observer: unsupported SCM origin", "project", proj.ID, "repo", child.Name, "origin", child.RepoOriginURL)
 			continue
 		}
 		childPath := filepath.Join(proj.Path, filepath.FromSlash(child.RelativePath))
-		checkouts = append(checkouts, o.resolveScanRepos(ctx, domain.ProjectRecord{Path: childPath}, repo))
+		checkout := domain.ProjectRecord{Path: childPath, Config: domain.ProjectConfig{SCMProvider: proj.Config.SCMProvider}}
+		checkouts = append(checkouts, o.resolveScanRepos(ctx, checkout, repo))
 	}
 	return checkoutSessionRepos(sess, branch, true, checkouts...), nil
 }

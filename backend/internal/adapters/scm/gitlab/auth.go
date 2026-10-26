@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -102,8 +103,10 @@ func (s FallbackTokenSource) InvalidateToken() {
 const defaultGLabTokenCacheTTL = 5 * time.Minute
 
 // GLabTokenSource shells out to `glab auth status --show-token` when env vars
-// are not configured. It memoizes the result for TokenTTL.
+// are not configured. It memoizes the result for TokenTTL. Host scopes the
+// lookup with --hostname so a token is only ever read for the host it belongs to.
 type GLabTokenSource struct {
+	Host     string
 	GLab     func(ctx context.Context) (string, error)
 	TokenTTL time.Duration
 	Clock    func() time.Time
@@ -124,7 +127,7 @@ func (s *GLabTokenSource) Token(ctx context.Context) (string, error) {
 	}
 	run := s.GLab
 	if run == nil {
-		run = glabAuthToken
+		run = func(ctx context.Context) (string, error) { return glabAuthToken(ctx, s.Host) }
 	}
 	out, err := run(ctx)
 	if err != nil {
@@ -171,10 +174,14 @@ func (s *GLabTokenSource) ttl() time.Duration {
 // If glab is not installed, not authenticated, or exits non-zero for any other
 // reason, ErrNoToken is returned so the GitLab provider is silently disabled
 // rather than erroring on every poll.
-func glabAuthToken(ctx context.Context) (string, error) {
+func glabAuthToken(ctx context.Context, host string) (string, error) {
+	args := []string{"auth", "status", "--show-token"}
+	if host = NormalizeHost(host); host != "" {
+		args = append(args, "--hostname", host)
+	}
 	// glab writes auth status output to stderr, not stdout — use CombinedOutput
 	// to capture both streams so the token is not lost.
-	out, err := aoprocess.CommandContext(ctx, "glab", "auth", "status", "--show-token").CombinedOutput()
+	out, err := aoprocess.CommandContext(ctx, "glab", args...).CombinedOutput()
 	if err != nil {
 		return "", ErrNoToken
 	}
@@ -210,4 +217,24 @@ func parseGLabTokenLine(output string) string {
 		}
 	}
 	return ""
+}
+
+var glabLoggedInRe = regexp.MustCompile(`Logged in to (\S+) as`)
+
+// DiscoverGLabHosts lists the GitLab hosts `glab auth status` reports as signed
+// in. glab exits non-zero when any one host fails, so the output is parsed
+// regardless of the exit status. A missing glab yields no hosts.
+func DiscoverGLabHosts(ctx context.Context) []string {
+	out, _ := aoprocess.CommandContext(ctx, "glab", "auth", "status").CombinedOutput()
+	return parseGLabHosts(string(out))
+}
+
+func parseGLabHosts(output string) []string {
+	var hosts []string
+	for _, m := range glabLoggedInRe.FindAllStringSubmatch(output, -1) {
+		if host := NormalizeHost(m[1]); host != "" {
+			hosts = append(hosts, host)
+		}
+	}
+	return hosts
 }

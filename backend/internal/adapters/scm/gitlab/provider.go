@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
@@ -37,7 +38,18 @@ type ProviderOptions struct {
 	// selection ensures the gitlab.com token is not attached to a self-managed
 	// host and vice versa.
 	HostTokens map[string]TokenSource
+
+	// DiscoverHosts lists additional self-managed hosts the user has signed in
+	// to (production: DiscoverGLabHosts). They are trusted like AllowedHosts.
+	// The result is cached for discoveredHostsTTL.
+	DiscoverHosts func(ctx context.Context) []string
+
+	// HostToken builds the token source for a trusted self-managed host that
+	// has no HostTokens entry. Nil falls back to the default Token.
+	HostToken func(host string) TokenSource
 }
+
+const discoveredHostsTTL = 5 * time.Minute
 
 // Provider implements the provider-neutral scm.Provider interface for GitLab.
 // It supports multiple GitLab hosts (gitlab.com + self-managed) by maintaining
@@ -60,6 +72,12 @@ type Provider struct {
 	// hostTokens maps a self-managed host to its TokenSource. Hosts in
 	// allowedHosts without an entry fall back to the default token (opts.Token).
 	hostTokens map[string]TokenSource
+	hostToken  func(host string) TokenSource
+
+	discoverHosts   func(ctx context.Context) []string
+	discoveredMu    sync.Mutex
+	discovered      map[string]bool
+	discoveredUntil time.Time
 
 	// Per-host clients for self-managed GitLab instances. Lazily populated.
 	hostClients   map[string]*Client
@@ -121,10 +139,12 @@ func NewProvider(opts ProviderOptions) (*Provider, error) {
 	}
 
 	return &Provider{
-		client:       c,
-		logger:       logger,
-		allowedHosts: allowed,
-		hostTokens:   hostTokens,
+		client:        c,
+		logger:        logger,
+		allowedHosts:  allowed,
+		hostTokens:    hostTokens,
+		hostToken:     opts.HostToken,
+		discoverHosts: opts.DiscoverHosts,
 		hostClientCfg: ClientOptions{
 			HTTPClient: opts.HTTPClient,
 			Token:      opts.Token,
@@ -147,7 +167,43 @@ func (p *Provider) isHostAllowed(host string) bool {
 	if IsGitLabDotCom(host) {
 		return true
 	}
-	return p.allowedHosts[host]
+	return p.isSelfManagedTrusted(host)
+}
+
+// isSelfManagedTrusted reports whether a normalized self-managed host is
+// allowlisted or one the user signed in to through glab.
+func (p *Provider) isSelfManagedTrusted(host string) bool {
+	if p.allowedHosts[host] {
+		return true
+	}
+	if p.discoverHosts == nil {
+		return false
+	}
+	p.discoveredMu.Lock()
+	defer p.discoveredMu.Unlock()
+	if time.Now().After(p.discoveredUntil) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		hosts := p.discoverHosts(ctx)
+		cancel()
+		p.discovered = make(map[string]bool, len(hosts))
+		for _, h := range hosts {
+			p.discovered[NormalizeHost(h)] = true
+		}
+		p.discoveredUntil = time.Now().Add(discoveredHostsTTL)
+	}
+	return p.discovered[host]
+}
+
+// tokenForHost picks the token for a trusted self-managed host: an explicit
+// HostTokens entry, then the HostToken builder, then the default token.
+func (p *Provider) tokenForHost(host string) TokenSource {
+	if src, ok := p.hostTokens[host]; ok {
+		return src
+	}
+	if p.hostToken != nil {
+		return p.hostToken(host)
+	}
+	return p.hostClientCfg.Token
 }
 
 // clientForHost returns the client whose REST base matches the given host.
@@ -170,8 +226,8 @@ func (p *Provider) clientForHost(host string) *Client {
 	if IsGitLabDotCom(h) {
 		return p.client
 	}
-	// Reject non-allowlisted hosts before any credential is attached.
-	if !p.allowedHosts[h] {
+	// Reject untrusted hosts before any credential is attached.
+	if !p.isSelfManagedTrusted(h) {
 		return nil
 	}
 	// If the default client's RESTBase already matches this host (e.g. a test
@@ -190,11 +246,7 @@ func (p *Provider) clientForHost(host string) *Client {
 	// Derive the REST base from the host, preserving any port (e.g.
 	// "gitlab.internal:8443" → "https://gitlab.internal:8443/api/v4").
 	cfg.RESTBase = "https://" + h + "/api/v4"
-	// Select the per-host token if one is configured; otherwise the default
-	// token (cfg.Token) applies.
-	if src, ok := p.hostTokens[h]; ok {
-		cfg.Token = src
-	}
+	cfg.Token = p.tokenForHost(h)
 	c := NewClient(cfg)
 	p.hostClients[h] = c
 	return c
@@ -315,6 +367,15 @@ func (p *Provider) SCMCredentialsAvailable(ctx context.Context) (bool, error) {
 		// but are misconfigured.
 		if !errors.Is(err, ErrNoToken) {
 			return false, err
+		}
+	}
+
+	// Finally, a self-managed host signed in through glab.
+	if p.discoverHosts != nil && p.hostToken != nil {
+		for _, host := range p.discoverHosts(ctx) {
+			if _, err := p.hostToken(NormalizeHost(host)).Token(ctx); err == nil {
+				return true, nil
+			}
 		}
 	}
 

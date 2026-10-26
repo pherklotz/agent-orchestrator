@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
 
 type sessionPromptRole string
@@ -23,6 +25,8 @@ type promptProject struct {
 	// WorkersRequestReview is the project's opt-in for workers to request an
 	// AO review of their own PR when it is ready.
 	WorkersRequestReview bool
+	// SCMProvider is the project's code-host integration selection.
+	SCMProvider domain.SCMProvider
 }
 
 type taskPromptConfig struct {
@@ -429,7 +433,22 @@ func projectContextSection(project promptProject) string {
 - Name: %s
 - Repository: %s
 - Default branch: %s
-- Path: %s`, project.ID, projectName(project), projectValue(project.Repo), projectValue(project.DefaultBranch), projectValue(project.Path))
+- Path: %s%s`, project.ID, projectName(project), projectValue(project.Repo), projectValue(project.DefaultBranch), projectValue(project.Path), projectSCMLine(project))
+}
+
+// projectSCMLine names the code host CLI agents should use. Auto-detected
+// GitHub stays silent because agents already default to gh.
+func projectSCMLine(project promptProject) string {
+	switch {
+	case project.SCMProvider == domain.SCMProviderNone:
+		return "\n- Code host integration: disabled. AO does not track PRs/MRs or CI for this project."
+	case project.SCMProvider == domain.SCMProviderGitLab,
+		project.SCMProvider == domain.SCMProviderAuto && strings.Contains(strings.ToLower(project.Repo), "gitlab"):
+		return "\n- Code host: GitLab. Use the `glab` CLI (not `gh`) for merge requests, pipelines, and review threads."
+	case project.SCMProvider == domain.SCMProviderGitHub:
+		return "\n- Code host: GitHub. Use the `gh` CLI for pull requests, checks, and reviews."
+	}
+	return ""
 }
 
 func projectName(project promptProject) string {

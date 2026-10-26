@@ -127,6 +127,7 @@ type projectConfig struct {
 	// of another field never silently turns it off.
 	WorkersRequestReview bool             `json:"workersRequestReview,omitempty"`
 	Reviewers            []reviewerConfig `json:"reviewers,omitempty"`
+	SCMProvider          string           `json:"scmProvider,omitempty"`
 }
 
 // setConfigRequest mirrors the daemon's SetConfigInput body for
@@ -137,6 +138,7 @@ type setConfigRequest struct {
 
 type projectSetConfigOptions struct {
 	canonicalRepoURL  string
+	scmProvider       string
 	defaultBranch     string
 	sessionPrefix     string
 	model             string
@@ -332,6 +334,7 @@ func newProjectSetConfigCommand(ctx *commandContext) *cobra.Command {
 	f.StringVar(&opts.defaultBranch, "default-branch", "", "Base branch for new worktrees; auto infers each repository's Git default")
 	f.StringVar(&opts.canonicalRepoURL, "canonical-repo-url", "", "Explicit upstream HTTPS repository URL for PR claims (same provider, host, and port as origin)")
 	f.StringVar(&opts.sessionPrefix, "session-prefix", "", "Displayed session-id prefix")
+	f.StringVar(&opts.scmProvider, "scm-provider", "", "Code-host integration for PR/MR and CI tracking: github, gitlab, or none (default: auto-detect from origin)")
 	f.StringVar(&opts.model, "model", "", "Agent model override (e.g. claude-opus-4-5)")
 	f.StringVar(&opts.permission, "permission", "", "Permission mode: default, accept-edits, auto, bypass-permissions")
 	f.StringVar(&opts.workerAgent, "worker-agent", "", "Harness override for worker sessions")
@@ -390,7 +393,8 @@ func buildProjectConfig(opts projectSetConfigOptions) (projectConfig, error) {
 			Repo:     opts.trackerRepo,
 			Assignee: opts.trackerAssignee,
 		},
-		Reviewers: reviewersForFlags(opts.reviewers),
+		Reviewers:   reviewersForFlags(opts.reviewers),
+		SCMProvider: opts.scmProvider,
 	}
 	if reflect.DeepEqual(cfg, projectConfig{}) {
 		return projectConfig{}, usageError{errors.New("usage: provide at least one config flag, --config-json, or --clear")}

@@ -12,9 +12,11 @@ The provider tracks:
 - mergeability and merge-conflict reasons;
 - review decisions and unresolved human-review comment counts.
 
-For GitHub, authenticate `gh`. For GitLab, the daemon resolves `AO_GITLAB_TOKEN`, then `GITLAB_TOKEN`, then authenticated `glab` credentials. Use an account with access to the repository and the actions you intend to perform.
+For GitHub, authenticate `gh`. For GitLab, the daemon resolves `AO_GITLAB_TOKEN`, then `GITLAB_TOKEN`, then the `glab` credentials for GitLab.com. Use an account with access to the repository and the actions you intend to perform.
 
-To connect a self-managed GitLab host:
+By default each project uses the provider that matches its Git remote. To choose explicitly, open the project's settings and pick **Code host integration** under **Pull requests**: **GitHub**, **GitLab**, or **None** to turn PR/MR and CI tracking off for that project. From the CLI, use `ao project set-config <id> --scm-provider gitlab`.
+
+To connect a self-managed GitLab host, sign in with `glab auth login --hostname gitlab.example.com`. Orchestrator trusts every host that `glab auth status` reports as signed in, and uses the token glab holds for that host. To configure a host without glab:
 
 1. Add its hostname to the daemon's `AO_GITLAB_ALLOWED_HOSTS` setting. Include the port if the host uses one; omit `https://`. GitLab.com is already allowed.
 2. If the host needs a separate token, add a `host=token` entry to `AO_GITLAB_HOST_TOKENS`.
@@ -27,7 +29,7 @@ export AO_GITLAB_ALLOWED_HOSTS="gitlab.example.com"
 export AO_GITLAB_HOST_TOKENS="gitlab.example.com=YOUR_GITLAB_TOKEN"
 ```
 
-Replace `YOUR_GITLAB_TOKEN` with the token for that host. These are daemon environment settings, not project settings. Do not put tokens in project JSON or docs. Without a host-specific token, Orchestrator uses `AO_GITLAB_TOKEN`, then `GITLAB_TOKEN`, then authenticated `glab` credentials.
+Replace `YOUR_GITLAB_TOKEN` with the token for that host. These are daemon environment settings, not project settings. Do not put tokens in project JSON or docs. Without a host-specific token, Orchestrator uses the token glab holds for that host, then `AO_GITLAB_TOKEN`, then `GITLAB_TOKEN`.
 
 When a numeric PR/MR reference is ambiguous, include its full URL. If the Git remote points to a fork but claims should target the upstream, set the project's `canonicalRepoURL`. This trusts the upstream for claims without changing where Orchestrator checks out or pushes. A claim records ownership; it does not check out the PR/MR branch. Orchestrator sends merge actions to the owning provider. GitHub review actions may differ on GitLab.
 

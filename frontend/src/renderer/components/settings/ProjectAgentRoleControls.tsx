@@ -191,6 +191,23 @@ export function ProjectWorkersRequestReviewToggle({ checked, onCheckedChange }: 
 	return <ProjectToggleRow id="project-workers-request-review" label={t("settings.project.workersRequestReviewToggle")} description={t("settings.project.workersRequestReviewDescription")} checked={checked} onCheckedChange={onCheckedChange} />;
 }
 
+/** Code-host integration used for PR/MR and CI tracking; "" auto-detects from the origin remote. */
+export function ProjectSCMProviderSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+	const { t } = useTranslation();
+	const label = t("settings.project.scmProvider");
+	const options = [
+		{ value: "", label: t("settings.project.scmProviderAuto") },
+		{ value: "github", label: "GitHub" },
+		{ value: "gitlab", label: "GitLab" },
+		{ value: "none", label: t("settings.project.scmProviderNone") },
+	];
+	return (
+		<SettingsRow label={label} description={t("settings.project.scmProviderDescription")}>
+			<SettingsOptionMenu aria-label={label} value={value} options={options} triggerClassName="w-fit" onChange={onChange} />
+		</SettingsRow>
+	);
+}
+
 function ProjectToggleRow({ id, label, description, checked, onCheckedChange }: { id: string; label: string; description: string; checked: boolean; onCheckedChange: (checked: boolean) => void }) {
 	return (
 		<SettingsRow label={label} description={description}>

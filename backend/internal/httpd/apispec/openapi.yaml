@@ -15757,6 +15757,8 @@ components:
           items:
             $ref: '#/components/schemas/DomainReviewerConfig'
           type: array
+        scmProvider:
+          type: string
         sessionPrefix:
           type: string
         symlinks:

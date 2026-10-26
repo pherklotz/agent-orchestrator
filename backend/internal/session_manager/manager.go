@@ -5387,6 +5387,7 @@ func promptProjectContext(projectID domain.ProjectID, project domain.ProjectReco
 		Path:          project.Path,
 
 		WorkersRequestReview: cfg.WorkersRequestReview,
+		SCMProvider:          cfg.SCMProvider,
 	}
 }
 

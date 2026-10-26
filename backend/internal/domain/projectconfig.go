@@ -14,9 +14,9 @@ import (
 //
 // Only fields with a live consumer are modeled: DefaultBranch, Env, Symlinks,
 // PostCreate, AgentConfig, prompt rules, and the role overrides are consumed at
-// spawn; SessionPrefix feeds the display prefix. Settings whose consumers do not
-// yet exist (tracker/SCM per-project config) are intentionally absent and land in
-// focused follow-up PRs alongside the code that reads them.
+// spawn; SessionPrefix feeds the display prefix; SCMProvider gates the SCM
+// observer. Settings whose consumers do not yet exist are intentionally absent
+// and land in focused follow-up PRs alongside the code that reads them.
 type ProjectConfig struct {
 	// CanonicalRepoURL explicitly trusts one upstream repository for PR claims.
 	// Numeric PR references use this repository when set; checkout/push stays on origin.
@@ -83,6 +83,36 @@ type ProjectConfig struct {
 	// the feature but check with the user or orchestrator before using it.
 	// Read at spawn, when the worker prompt is built.
 	WorkersRequestReview bool `json:"workersRequestReview,omitempty"`
+
+	// SCMProvider picks the code-host integration AO uses for this project's
+	// PR/MR and CI tracking. Empty auto-detects from the repository remote.
+	SCMProvider SCMProvider `json:"scmProvider,omitempty"`
+}
+
+// SCMProvider selects a project's code-host integration.
+type SCMProvider string
+
+const (
+	// SCMProviderAuto detects the provider from the repository remote.
+	SCMProviderAuto SCMProvider = ""
+	// SCMProviderGitHub tracks pull requests and checks through GitHub.
+	SCMProviderGitHub SCMProvider = "github"
+	// SCMProviderGitLab tracks merge requests and pipelines through GitLab.
+	SCMProviderGitLab SCMProvider = "gitlab"
+	// SCMProviderNone disables PR/MR and CI tracking for the project.
+	SCMProviderNone SCMProvider = "none"
+)
+
+// Allows reports whether a repository parsed for provider key may be tracked
+// under this selection.
+func (p SCMProvider) Allows(provider string) bool {
+	switch p {
+	case SCMProviderAuto:
+		return true
+	case SCMProviderNone:
+		return false
+	}
+	return strings.EqualFold(string(p), provider)
 }
 
 // ContainerReapConfig is the project-level opt-out for #2652's Docker
@@ -262,6 +292,11 @@ func (c ProjectConfig) Validate() error {
 	}
 	if err := c.TrackerIntake.Validate(); err != nil {
 		return err
+	}
+	switch c.SCMProvider {
+	case SCMProviderAuto, SCMProviderGitHub, SCMProviderGitLab, SCMProviderNone:
+	default:
+		return fmt.Errorf("scmProvider: unknown provider %q", c.SCMProvider)
 	}
 	return nil
 }

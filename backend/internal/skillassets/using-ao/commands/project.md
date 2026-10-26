@@ -152,6 +152,7 @@ ao project set-config <id> [flags]
 | `--orchestrator-rules string` | Project-specific standing instructions appended to orchestrator session prompts | - |
 | `--permission string` | Permission mode: `default`, `accept-edits`, `auto`, `bypass-permissions` | - |
 | `--post-create stringArray` | Command to run after workspace creation (repeatable) | - |
+| `--scm-provider string` | Code-host integration for PR/MR and CI tracking: `github`, `gitlab`, or `none` | Auto-detect from origin |
 | `--session-prefix string` | Displayed session-id prefix | - |
 | `--symlink stringArray` | Repo-relative path to symlink into workspaces (repeatable) | - |
 | `--tracker-assignee string` | Issue assignee required for tracker intake eligibility | - |

@@ -3519,3 +3519,39 @@ func TestMergeabilityFromProviderFacts_UnstableOutranksBlockers(t *testing.T) {
 		})
 	}
 }
+
+// TestDiscoverSubjects_HonorsProjectSCMProvider confirms a project's SCM
+// provider selection gates observation: "none" and a mismatched provider skip
+// the project, while auto and the matching provider keep it.
+func TestDiscoverSubjects_HonorsProjectSCMProvider(t *testing.T) {
+	cases := []struct {
+		selection domain.SCMProvider
+		want      bool
+	}{
+		{domain.SCMProviderAuto, true},
+		{domain.SCMProviderGitHub, true},
+		{domain.SCMProviderGitLab, false},
+		{domain.SCMProviderNone, false},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.selection), func(t *testing.T) {
+			store := &fakeStore{
+				sessions: []domain.SessionRecord{{ID: "p-1", ProjectID: "p", Metadata: domain.SessionMetadata{Branch: "feat"}}},
+				projects: map[string]domain.ProjectRecord{"p": {
+					ID: "p", RepoOriginURL: "https://github.com/o/r.git",
+					Config: domain.ProjectConfig{SCMProvider: tc.selection},
+				}},
+				prs:    map[domain.SessionID][]domain.PullRequest{},
+				checks: map[string][]domain.PullRequestCheck{},
+			}
+			obs := newTestObserver(store, &fakeProvider{}, &fakeLifecycle{}, time.Unix(0, 0).UTC())
+			_, sessionRepos, err := obs.discoverSubjects(context.Background())
+			if err != nil {
+				t.Fatalf("discoverSubjects: %v", err)
+			}
+			if got := len(sessionRepos) > 0; got != tc.want {
+				t.Fatalf("observed = %v, want %v (%d session repos)", got, tc.want, len(sessionRepos))
+			}
+		})
+	}
+}

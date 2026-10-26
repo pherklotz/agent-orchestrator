@@ -783,6 +783,29 @@ describe("ProjectSettingsForm", () => {
 		expect(request?.body.config.reviewers).toBeUndefined();
 	});
 
+	it("loads and saves the project's code host integration", async () => {
+		mockProject({
+			id: "proj-1",
+			name: "Project One",
+			kind: "single_repo",
+			path: "/repo/project-one",
+			repo: "git@git.corp.example:team/project-one.git",
+			defaultBranch: "main",
+			config: {
+				worker: { agent: "codex" },
+				orchestrator: { agent: "claude-code" },
+			},
+		});
+
+		renderSettings("proj-1", undefined, "general");
+
+		await chooseOption(await screen.findByRole("button", { name: "Code host integration" }), "GitLab");
+		submitSettings();
+
+		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
+		expect(putMock.mock.calls[0]?.[1]?.body.config.scmProvider).toBe("gitlab");
+	});
+
 	// With no reviewer configured the daemon reviews with the default worker
 	// agent and its model, so the reviewer row must show that model.
 	it("shows the default worker model as the inherited reviewer model", async () => {

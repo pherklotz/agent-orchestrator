@@ -53,9 +53,10 @@ func newGitHubSCMProvider(logger *slog.Logger) (*scmgithub.Provider, error) {
 }
 
 func newGitLabSCMProvider(gitlabCfg config.GitLabConfig, logger *slog.Logger) (*scmgitlab.Provider, error) {
+	envTokens := scmgitlab.EnvTokenSource{EnvVars: []string{"AO_GITLAB_TOKEN"}}
 	tokens := scmgitlab.FallbackTokenSource{
-		scmgitlab.EnvTokenSource{EnvVars: []string{"AO_GITLAB_TOKEN"}},
-		&scmgitlab.GLabTokenSource{},
+		envTokens,
+		&scmgitlab.GLabTokenSource{Host: "gitlab.com"},
 	}
 	hostTokens := make(map[string]scmgitlab.TokenSource, len(gitlabCfg.HostTokens))
 	for host, token := range gitlabCfg.HostTokens {
@@ -67,6 +68,12 @@ func newGitLabSCMProvider(gitlabCfg config.GitLabConfig, logger *slog.Logger) (*
 		Logger:             logger,
 		AllowedHosts:       gitlabCfg.AllowedHosts,
 		HostTokens:         hostTokens,
+		// Self-managed hosts signed in through glab are trusted, and prefer
+		// the token glab holds for that host over the default env token.
+		DiscoverHosts: scmgitlab.DiscoverGLabHosts,
+		HostToken: func(host string) scmgitlab.TokenSource {
+			return scmgitlab.FallbackTokenSource{&scmgitlab.GLabTokenSource{Host: host}, envTokens}
+		},
 	})
 }
 

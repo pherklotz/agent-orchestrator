@@ -58,8 +58,15 @@ graph TB
 Wiring lives in `backend/internal/daemon/scm_wiring.go`: both providers are
 registered with the `multi` dispatcher; a missing token disables one provider
 without disabling the other. GitHub auth falls back `AO_GITHUB_TOKEN` → `gh
-auth token`; GitLab falls back `AO_GITLAB_TOKEN` → `glab`, plus per-host
-static tokens from config.
+auth token`; GitLab falls back `AO_GITLAB_TOKEN` → `glab` (scoped to
+gitlab.com), plus per-host static tokens from config. Self-managed hosts that
+`glab auth status` reports as signed in are trusted like
+`AO_GITLAB_ALLOWED_HOSTS` and use the token glab holds for that host.
+
+Each project picks its integration with `scmProvider` in its config (`ao
+project set-config --scm-provider`, or Settings → project → Pull requests):
+empty auto-detects from the remote, `github`/`gitlab` only track remotes of
+that provider, and `none` turns PR/MR and CI tracking off for the project.
 
 The observer is deliberately provider-neutral: it never speaks REST/GraphQL
 itself. Everything it knows arrives as `ports.SCMObservation` /

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
 
 func TestBuildTaskPrompt_IssueContextStaysInTaskPrompt(t *testing.T) {
@@ -375,5 +377,33 @@ func TestBuildSystemPrompt_WorkerNativeReviewFollowsProjectPolicy(t *testing.T) 
 	local := buildSystemPromptText(systemPromptConfig{Role: sessionPromptRoleWorker, Project: promptProject{ID: "mer"}})
 	if strings.Contains(local, "## AO Native Review") {
 		t.Fatalf("a project with no remote has no PRs to review:\n%s", local)
+	}
+}
+
+func TestProjectContextSection_NamesCodeHostCLI(t *testing.T) {
+	cases := []struct {
+		name    string
+		project promptProject
+		want    string
+	}{
+		{"auto github stays silent", promptProject{Repo: "https://github.com/o/r"}, ""},
+		{"auto gitlab host", promptProject{Repo: "https://gitlab.example.com/g/r"}, "`glab` CLI"},
+		{"explicit gitlab", promptProject{Repo: "https://git.corp/g/r", SCMProvider: domain.SCMProviderGitLab}, "`glab` CLI"},
+		{"explicit github", promptProject{Repo: "https://github.com/o/r", SCMProvider: domain.SCMProviderGitHub}, "`gh` CLI"},
+		{"none", promptProject{Repo: "https://gitlab.com/g/r", SCMProvider: domain.SCMProviderNone}, "integration: disabled"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := projectContextSection(tc.project)
+			if tc.want == "" {
+				if strings.Contains(got, "Code host") {
+					t.Fatalf("unexpected code host line:\n%s", got)
+				}
+				return
+			}
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("missing %q in:\n%s", tc.want, got)
+			}
+		})
 	}
 }
