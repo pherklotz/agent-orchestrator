@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import type { components } from "../../api/schema";
 import { cn } from "../lib/utils";
 import { Label } from "./ui/label";
-import { SettingsRow } from "./settings/SettingsRow";
+import { SettingsOptionMenu } from "./settings/SettingsOptionMenu";
+import { SettingsInlineInput, SettingsRow } from "./settings/SettingsRow";
 import { Button } from "./ui/button";
 import { Switch } from "./ui/switch";
 
@@ -17,21 +18,32 @@ type TrackerIntakeConfig = components["schemas"]["TrackerIntakeConfig"];
 // (--tracker-repo) survives a UI save instead of being wiped.
 export type IntakeForm = {
 	enabled: boolean;
+	// "" lets the daemon infer github/gitlab from the repo origin URL. Jira is
+	// never inferred, and its repo is the Jira project key. Undefined (create
+	// sheet) leaves any stored provider untouched.
+	provider?: string;
 	repo: string;
 	assignee: string;
 };
 
-// The provider is not set here — the daemon infers it from the project's repo
-// origin URL (github.com → github, any other host → gitlab). Adding
-// Linear/Jira later means: the backend enum grows, IntakeFields gains a
-// provider <Select> + per-provider scope fields, and buildIntake switches the
-// scope field it emits.
+type TrackerProvider = NonNullable<TrackerIntakeConfig["provider"]>;
+const TRACKER_PROVIDERS: { value: TrackerProvider; label: string }[] = [
+	{ value: "github", label: "GitHub" },
+	{ value: "gitlab", label: "GitLab" },
+	{ value: "jira", label: "Jira" },
+];
 
 // intakeNeedsRule mirrors the backend guard (TrackerIntakeConfig.Validate):
 // enabling intake requires an assignee so it cannot drain an entire issue
 // backlog. v1 intake is assignee-only.
 export function intakeNeedsRule(form: IntakeForm): boolean {
 	return form.enabled && form.assignee.trim() === "";
+}
+
+// intakeNeedsJiraProject mirrors the backend guard that Jira intake names its
+// project key explicitly.
+export function intakeNeedsJiraProject(form: IntakeForm): boolean {
+	return form.enabled && form.provider === "jira" && form.repo.trim() === "";
 }
 
 // buildIntake produces the payload field, scrubbing empties so a disabled or
@@ -44,6 +56,7 @@ export function buildIntake(
 	const next: TrackerIntakeConfig = {
 		...existing,
 		enabled: form.enabled || undefined,
+		...(form.provider !== undefined && { provider: (form.provider || undefined) as TrackerProvider | undefined }),
 		repo: form.repo.trim() || undefined,
 		assignee: form.assignee.trim() || undefined,
 	};
@@ -215,6 +228,7 @@ function IntakeSettingsFields({
 	const inputRef = useRef<HTMLInputElement>(null);
 	const trimmedAssignee = form.assignee.trim();
 	const hasAssignee = trimmedAssignee.length > 0;
+	const isJira = form.provider === "jira";
 
 	useEffect(() => {
 		if (!assigneeEditing) return;
@@ -258,7 +272,31 @@ function IntakeSettingsFields({
 			</SettingsRow>
 			{form.enabled && (
 				<>
-					{repoPreview && (
+					<SettingsRow label={t("settings.project.tracker")}>
+						<SettingsOptionMenu
+							aria-label={t("settings.project.tracker")}
+							value={form.provider ?? ""}
+							triggerClassName="w-fit"
+							options={[{ value: "", label: t("settings.project.trackerAuto") }, ...TRACKER_PROVIDERS]}
+							// The repo/project scope is provider-native, so a switch clears it.
+							onChange={(provider) => onChange(provider === (form.provider ?? "") ? {} : { provider, repo: "" })}
+						/>
+					</SettingsRow>
+					{isJira && (
+						<SettingsRow label={t("settings.project.jiraProject")}>
+							<SettingsInlineInput
+								id="intakeJiraProject"
+								label={t("settings.project.jiraProject")}
+								value={form.repo}
+								onChange={(repo) => onChange({ repo: repo.trim().toUpperCase() })}
+								placeholder={t("settings.project.jiraProjectPlaceholder")}
+							/>
+						</SettingsRow>
+					)}
+					{isJira && intakeNeedsJiraProject(form) && (
+						<p className="px-1 text-pretty text-xs leading-4 text-settings-muted">{t("settings.project.jiraProjectHint")}</p>
+					)}
+					{repoPreview && !isJira && (
 						<SettingsRow label={t("settings.project.repository")}>
 							{repoPreview.value ? (
 								<AppLink

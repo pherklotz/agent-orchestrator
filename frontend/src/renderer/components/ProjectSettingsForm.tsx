@@ -165,6 +165,7 @@ function SettingsBody({ project, projectId, hostId, hostConnected, onSaved, sect
 		autoReview: config.autoReview ?? false,
 		workersRequestReview: config.workersRequestReview ?? false,
 		intakeEnabled: intake.enabled ?? false,
+		intakeProvider: intake.provider ?? "",
 		intakeRepo: intake.repo ?? "",
 		intakeAssignee: intake.assignee ?? "",
 	};
@@ -247,6 +248,7 @@ function SettingsBody({ project, projectId, hostId, hostConnected, onSaved, sect
 					trackerIntake: buildIntake(
 						{
 							enabled: values.intakeEnabled,
+							provider: values.intakeProvider,
 							repo: values.intakeRepo,
 							assignee: values.intakeAssignee,
 						},
