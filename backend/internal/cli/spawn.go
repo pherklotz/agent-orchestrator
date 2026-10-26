@@ -121,8 +121,8 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 			if tp == "" {
 				tp = "github"
 			}
-			if tp != "github" && tp != "gitlab" {
-				return usageError{fmt.Errorf(`--tracker-provider must be "github" or "gitlab"`)}
+			if tp != "github" && tp != "gitlab" && tp != "jira" {
+				return usageError{fmt.Errorf(`--tracker-provider must be "github", "gitlab", or "jira"`)}
 			}
 			opts.trackerProvider = tp
 
@@ -240,7 +240,7 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 	f.StringVar(&opts.output, "output", "", "Deliverable for the session: artifact asks the agent to write a file in its artifact directory instead of opening a PR (default: ordinary task)")
 	f.StringVar(&opts.effort, "effort", "", "Reasoning effort override for this session only (e.g. low, medium, high); empty defers to the agent/model default")
 	f.StringVar(&opts.issue, "issue", "", "Issue id to associate with the session")
-	f.StringVar(&opts.trackerProvider, "tracker-provider", "github", "Issue tracker provider: github or gitlab (default: github)")
+	f.StringVar(&opts.trackerProvider, "tracker-provider", "github", "Issue tracker provider: github, gitlab, or jira (default: github)")
 	f.StringVar(&opts.name, "name", "", "Display name shown in the sidebar (required, max 100 characters)")
 	f.StringVar(&opts.claimPR, "claim-pr", "", "Claim PR ownership metadata only for the spawned session; does not check out the PR branch")
 	f.BoolVar(&opts.noTakeover, "no-takeover", false, "Refuse if another active session owns the claimed PR (requires --claim-pr)")

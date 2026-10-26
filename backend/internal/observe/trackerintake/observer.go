@@ -329,7 +329,7 @@ func trackerRepo(project domain.ProjectRecord, cfg domain.TrackerIntakeConfig) (
 		provider = domain.InferTrackerProvider(project.RepoOriginURL)
 	}
 	native := strings.TrimSpace(cfg.Repo)
-	if native == "" {
+	if native == "" && provider != domain.TrackerProviderJira {
 		native, _ = parseRepoNative(project.RepoOriginURL, provider)
 	}
 	if native == "" {

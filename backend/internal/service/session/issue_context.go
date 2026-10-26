@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -47,7 +48,11 @@ func (s *Service) trackerIDForIssue(cfg ports.SpawnConfig, project domain.Projec
 	if native, host, ok := canonicalGitLabIssueURL(issue); ok {
 		return domain.TrackerID{Provider: domain.TrackerProviderGitLab, Native: native, Host: host}, true
 	}
-	// 3. Plain issue number — resolve repo from SCM origin or tracker-provider hint.
+	// 3. Jira key ("PROJ-123", intake's "jira:PROJ-123") or browse URL.
+	if key, ok := canonicalJiraIssueKey(issue); ok {
+		return domain.TrackerID{Provider: domain.TrackerProviderJira, Native: key}, true
+	}
+	// 4. Plain issue number — resolve repo from SCM origin or tracker-provider hint.
 	n, err := strconv.Atoi(issue)
 	if err != nil || n <= 0 {
 		return domain.TrackerID{}, false
@@ -201,6 +206,26 @@ func canonicalGitLabIssueURL(raw string) (native, host string, ok bool) {
 		host = "" // zero value means gitlab.com
 	}
 	return fmt.Sprintf("%s#%d", strings.Join(parts, "/"), n), host, true
+}
+
+var jiraIssueKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9_]*-[0-9]+$`)
+
+// canonicalJiraIssueKey accepts "PROJ-123", "jira:PROJ-123", and
+// "https://<site>/browse/PROJ-123", returning the bare key.
+func canonicalJiraIssueKey(raw string) (string, bool) {
+	key := strings.TrimPrefix(raw, string(domain.TrackerProviderJira)+":")
+	if strings.Contains(key, "://") {
+		u, err := url.Parse(key)
+		if err != nil {
+			return "", false
+		}
+		_, after, ok := strings.Cut(u.Path, "/browse/")
+		if !ok {
+			return "", false
+		}
+		key = strings.Trim(after, "/")
+	}
+	return key, jiraIssueKeyRe.MatchString(key)
 }
 
 func formatIssueContext(issue domain.Issue) string {

@@ -194,3 +194,17 @@ func TestTrackerIDForIssue_PlainNumberGitHub(t *testing.T) {
 		t.Errorf("Native = %q, want owner/repo#42", id.Native)
 	}
 }
+
+func TestTrackerIDForIssue_Jira(t *testing.T) {
+	svc := NewWithDeps(Deps{})
+	project := domain.ProjectRecord{RepoOriginURL: "https://github.com/owner/repo.git"}
+	for _, raw := range []string{"PROJ-12", "jira:PROJ-12", "https://acme.atlassian.net/browse/PROJ-12"} {
+		id, ok := svc.trackerIDForIssue(ports.SpawnConfig{IssueID: domain.IssueID(raw)}, project)
+		if !ok || id.Provider != domain.TrackerProviderJira || id.Native != "PROJ-12" {
+			t.Errorf("trackerIDForIssue(%q) = %#v, %v; want jira PROJ-12", raw, id, ok)
+		}
+	}
+	if id, _ := svc.trackerIDForIssue(ports.SpawnConfig{IssueID: "owner/repo#3"}, project); id.Provider != domain.TrackerProviderGitHub {
+		t.Errorf("GitHub native id resolved as %q", id.Provider)
+	}
+}

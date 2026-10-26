@@ -152,6 +152,7 @@ type projectSetConfigOptions struct {
 	symlink           []string
 	postCreate        []string
 	trackerIntake     bool
+	trackerProvider   string
 	trackerRepo       string
 	trackerAssignee   string
 	reviewers         []string
@@ -345,8 +346,9 @@ func newProjectSetConfigCommand(ctx *commandContext) *cobra.Command {
 	f.StringArrayVar(&opts.env, "env", nil, "Env var KEY=VALUE forwarded into sessions (repeatable)")
 	f.StringArrayVar(&opts.symlink, "symlink", nil, "Repo-relative path to symlink into workspaces (repeatable)")
 	f.StringArrayVar(&opts.postCreate, "post-create", nil, "Command to run after workspace creation (repeatable)")
-	f.BoolVar(&opts.trackerIntake, "tracker-intake", false, "Opt this project into issue intake (GitHub or GitLab; provider inferred from git origin). Inert unless the daemon also has AO_TRACKER_INTAKE=on")
-	f.StringVar(&opts.trackerRepo, "tracker-repo", "", "Provider-native repo for issue intake (owner/repo or group/subgroup/repo; default: derive from git origin)")
+	f.BoolVar(&opts.trackerIntake, "tracker-intake", false, "Opt this project into issue intake (GitHub, GitLab, or Jira; provider inferred from git origin unless --tracker-provider is set). Inert unless the daemon also has AO_TRACKER_INTAKE=on")
+	f.StringVar(&opts.trackerProvider, "tracker-provider", "", "Issue intake provider: github, gitlab, or jira (default: infer from git origin; jira needs the jira CLI)")
+	f.StringVar(&opts.trackerRepo, "tracker-repo", "", "Provider-native repo for issue intake (owner/repo, group/subgroup/repo, or Jira project key; default: derive from git origin)")
 	f.StringVar(&opts.trackerAssignee, "tracker-assignee", "", "Issue assignee required for intake eligibility")
 	f.StringArrayVar(&opts.reviewers, "reviewer", nil, "Reviewer harness that reviews worker PRs (repeatable; e.g. claude-code)")
 	f.StringVar(&opts.configJSON, "config-json", "", "Full config as a JSON object (overrides field flags)")
@@ -390,6 +392,7 @@ func buildProjectConfig(opts projectSetConfigOptions) (projectConfig, error) {
 		Orchestrator:      roleOverride{Agent: opts.orchestratorAgent},
 		TrackerIntake: trackerIntakeConfig{
 			Enabled:  opts.trackerIntake,
+			Provider: opts.trackerProvider,
 			Repo:     opts.trackerRepo,
 			Assignee: opts.trackerAssignee,
 		},

@@ -4,7 +4,7 @@ import { Pencil } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { ProjectSettingsSaveState, ProjectSettingsSection as SettingsSection } from "./ProjectSettingsForm";
-import { deriveRepoHost, deriveRepoPath, IntakeFields, intakeNeedsRule } from "./IntakeFields";
+import { deriveRepoHost, deriveRepoPath, IntakeFields, intakeNeedsJiraProject, intakeNeedsRule } from "./IntakeFields";
 import { ProductExternalLink } from "./ProductExternalLink";
 import { AgentModelField, ProjectAutoReviewToggle, ProjectSCMProviderSelect, ProjectWorkersRequestReviewToggle } from "./settings/ProjectAgentRoleControls";
 import { SettingsOptionMenu } from "./settings/SettingsOptionMenu";
@@ -35,6 +35,8 @@ export type ProjectSettingsDraft = {
 	/** Local-only: code-host integration ("" auto, github, gitlab, none). */
 	scmProvider?: string;
 	intakeEnabled: boolean;
+	/** Optional so surfaces without a tracker picker (cloud) can omit it. */
+	intakeProvider?: string;
 	intakeRepo: string;
 	intakeAssignee: string;
 };
@@ -126,8 +128,8 @@ export function ProjectSettingsEditor({ initialValues, section, capabilities, de
 		},
 	});
 	const dirty = JSON.stringify(draft) !== saved.current;
-	const intake = { enabled: draft.intakeEnabled, repo: draft.intakeRepo, assignee: draft.intakeAssignee };
-	const intakeIncomplete = capabilities.intake && intakeNeedsRule(intake);
+	const intake = { enabled: draft.intakeEnabled, provider: draft.intakeProvider, repo: draft.intakeRepo, assignee: draft.intakeAssignee };
+	const intakeIncomplete = capabilities.intake && (intakeNeedsRule(intake) || intakeNeedsJiraProject(intake));
 	const visibleRoles = capabilities.reviewer ? roles : roles.slice(0, 2);
 	const nameLimit = capabilities.nameLimit ?? MAX_PROJECT_DISPLAY_NAME_LEN;
 	const validate = () => {
@@ -182,7 +184,7 @@ export function ProjectSettingsEditor({ initialValues, section, capabilities, de
 						<ProjectSettingsInputRow id="defaultBranch" label={t("settings.project.defaultBranch")} editLabel={t("settings.field.edit", { label: t("settings.project.defaultBranch") })} editIcon={<Pencil className="settings-inline-edit-icon" aria-hidden="true" />} value={draft.defaultBranch} placeholder={capabilities.requiredBranch ? undefined : "auto"} onChange={(defaultBranch) => patch({ defaultBranch })} />
 						{capabilities.sessionPrefix && <ProjectSettingsInputRow id="sessionPrefix" label={t("settings.project.sessionPrefix")} editLabel={t("settings.field.edit", { label: t("settings.project.sessionPrefix") })} editIcon={<Pencil className="settings-inline-edit-icon" aria-hidden="true" />} value={draft.sessionPrefix} placeholder="ao" onChange={(sessionPrefix) => patch({ sessionPrefix })} />}
 					</ProjectSettingsSection>
-					{capabilities.intake && <ProjectSettingsSection title={t("settings.project.issues")} grouped><IntakeFields variant="settings" form={intake} onChange={(values) => patch({ intakeEnabled: values.enabled ?? draft.intakeEnabled, intakeRepo: values.repo ?? draft.intakeRepo, intakeAssignee: values.assignee ?? draft.intakeAssignee })} repoPreview={{ value: draft.intakeRepo.trim() || deriveRepoPath(repository ?? ""), host: deriveRepoHost(repository ?? "") }} /></ProjectSettingsSection>}
+					{capabilities.intake && <ProjectSettingsSection title={t("settings.project.issues")} grouped><IntakeFields variant="settings" form={intake} onChange={(values) => patch({ intakeEnabled: values.enabled ?? draft.intakeEnabled, intakeProvider: values.provider ?? draft.intakeProvider, intakeRepo: values.repo ?? draft.intakeRepo, intakeAssignee: values.assignee ?? draft.intakeAssignee })} repoPreview={{ value: draft.intakeRepo.trim() || deriveRepoPath(repository ?? ""), host: deriveRepoHost(repository ?? "") }} /></ProjectSettingsSection>}
 					<ProjectSettingsSection title={t("settings.project.pullRequests")} grouped>
 						{capabilities.scmProvider && <ProjectSCMProviderSelect value={draft.scmProvider ?? ""} onChange={(scmProvider) => patch({ scmProvider })} />}
 						<ProjectAutoReviewToggle description={autoReviewDescription} checked={draft.autoReview} onCheckedChange={(autoReview) => patch({ autoReview })} />

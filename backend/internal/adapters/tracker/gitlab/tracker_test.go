@@ -668,7 +668,7 @@ func TestTrackerIntakeConfig_ValidateStillAcceptsGitHub(t *testing.T) {
 func TestTrackerIntakeConfig_ValidateRejectsUnknownProvider(t *testing.T) {
 	c := domain.TrackerIntakeConfig{
 		Enabled:  true,
-		Provider: domain.TrackerProvider("jira"),
+		Provider: domain.TrackerProvider("linear"),
 		Repo:     "owner/repo",
 		Assignee: "alice",
 	}
